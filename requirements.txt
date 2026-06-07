@@ -1,0 +1,24 @@
+# Pinned to versions verified to install together on Python 3.13.
+# Regenerate with:  pip freeze > requirements.lock.txt
+
+# --- Warehouse / ingestion ---
+google-cloud-bigquery==3.41.0
+pyarrow==24.0.0          # required by load_table_from_dataframe
+db-dtypes==1.7.0         # BigQuery <-> pandas dtype mapping
+
+# --- Transformation ---
+dbt-bigquery==1.11.1     # pulls dbt-core==1.11.11
+
+# --- Data / analysis ---
+pandas==3.0.3
+numpy==2.4.6
+scikit-learn==1.9.0
+scipy==1.17.1
+
+# --- Visualisation ---
+matplotlib==3.10.9
+seaborn==0.13.2
+streamlit==1.58.0
+
+# --- Narrative / LLM ---
+anthropic==0.107.0

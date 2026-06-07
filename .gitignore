@@ -1,0 +1,36 @@
+# --- Secrets / credentials (NEVER commit) ---
+credentials/*
+!credentials/README.txt
+*-service-account*.json
+service-account.json
+
+# --- Raw data (large / redistribution; keep out of git) ---
+data/raw/
+
+# --- Python ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- dbt ---
+target/
+dbt_packages/
+logs/
+.user.yml
+
+# --- Power BI ---
+*.pbix
+
+# --- Environment / local config ---
+.env
+.env.*
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
