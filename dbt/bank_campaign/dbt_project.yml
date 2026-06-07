@@ -1,0 +1,28 @@
+name: "bank_campaign"
+version: "1.0.0"
+config-version: 2
+
+# Connects this project to the profile defined in profiles.yml.
+profile: "bank_campaign"
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Layered datasets. The custom generate_schema_name macro maps these to the
+# literal BigQuery datasets `staging` and `marts` (and `raw` is the source).
+models:
+  bank_campaign:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table

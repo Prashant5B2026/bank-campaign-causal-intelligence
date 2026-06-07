@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Faithful copy of the UCI Bank Marketing dataset, loaded by src/ingest.py.
+      No transformations applied here — pdays == 999 ("never previously
+      contacted") is still present and is handled downstream in staging.
+    schema: raw
+    tables:
+      - name: campaign_contacts
+        description: One row per client contact in the direct-marketing campaign.
+        columns:
+          - name: pdays
+            description: >
+              Days since the client was last contacted. 999 means the client
+              was never previously contacted (treated as NULL in staging).
+          - name: duration
+            description: >
+              Call duration in seconds. LEAKAGE — only known after the call
+              ends. Excluded from causal/predictive work.
+          - name: y
+            description: Target — did the client subscribe to a term deposit (yes/no).

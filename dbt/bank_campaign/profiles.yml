@@ -1,0 +1,31 @@
+# dbt connection profile for the bank_campaign project.
+#
+# Service-account auth (not user/oauth) for reproducibility. Values are read
+# from environment variables so no secrets live in the repo:
+#
+#   GCP_PROJECT_ID      -> your GCP project id (e.g. bank-campaign-causal)
+#   DBT_GCP_KEYFILE     -> absolute path to the service-account JSON key
+#                          (defaults to ../../credentials/service-account.json)
+#
+# Run dbt from this directory, or pass `--profiles-dir .`, so dbt finds this
+# file instead of ~/.dbt/profiles.yml.
+#
+# The three logical layers (raw / staging / marts) are separate BigQuery
+# datasets. `dataset` below is the DEFAULT (raw); the staging and marts models
+# are routed to their own datasets via dbt_project.yml + the
+# generate_schema_name macro.
+
+bank_campaign:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      keyfile: "{{ env_var('DBT_GCP_KEYFILE', '../../credentials/service-account.json') }}"
+      dataset: raw
+      location: US
+      threads: 4
+      priority: interactive
+      job_execution_timeout_seconds: 300
+      job_retries: 1
