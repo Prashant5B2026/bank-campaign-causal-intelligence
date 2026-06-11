@@ -1,0 +1,105 @@
+version: 2
+
+models:
+  - name: stg_campaign_contacts
+    description: >
+      One cleaned, explicitly-typed row per campaign contact, sourced 1:1 from
+      raw.campaign_contacts. Column names are snake_cased and disambiguated
+      (`default`/`housing`/`loan`/`contact`/`month`/`day_of_week` renamed), the
+      pdays==999 sentinel is converted to NULL with a was_previously_contacted
+      flag, and a surrogate contact_id is assigned. `duration` is retained here
+      for completeness but is a leakage feature and is dropped at the mart layer.
+    columns:
+      - name: contact_id
+        description: Surrogate primary key (row_number over a row fingerprint); the source has no natural key.
+        tests:
+          - not_null
+          - unique
+      - name: age
+        description: Client age in years.
+      - name: job
+        description: Type of job.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['admin.', 'blue-collar', 'entrepreneur', 'housemaid', 'management', 'retired', 'self-employed', 'services', 'student', 'technician', 'unemployed', 'unknown']
+      - name: marital
+        description: Marital status.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['divorced', 'married', 'single', 'unknown']
+      - name: education
+        description: Highest education level.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['basic.4y', 'basic.6y', 'basic.9y', 'high.school', 'illiterate', 'professional.course', 'university.degree', 'unknown']
+      - name: credit_default
+        description: Has credit in default? (source `default`; no/yes/unknown).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['no', 'yes', 'unknown']
+      - name: housing_loan
+        description: Has a housing loan? (source `housing`; no/yes/unknown).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['no', 'yes', 'unknown']
+      - name: personal_loan
+        description: Has a personal loan? (source `loan`; no/yes/unknown).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['no', 'yes', 'unknown']
+      - name: contact_channel
+        description: Communication channel of the last contact (source `contact`).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['cellular', 'telephone']
+      - name: contact_month
+        description: Month of the last contact (source `month`).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+      - name: contact_dow
+        description: Day of week of the last contact (source `day_of_week`).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['mon', 'tue', 'wed', 'thu', 'fri']
+      - name: duration
+        description: >
+          Last-contact call duration in seconds. LEAKAGE: it is known only after
+          a call ends, so it trivially predicts the outcome. Kept in staging for
+          completeness but EXCLUDED from every mart; do not use it for
+          causal/predictive work.
+      - name: campaign
+        description: Number of contacts performed during this campaign for this client (includes the last contact).
+      - name: previous
+        description: Number of contacts performed before this campaign for this client.
+      - name: days_since_last_contact
+        description: Days since the client was last contacted in a prior campaign; NULL when never previously contacted (source pdays==999).
+      - name: was_previously_contacted
+        description: TRUE when the client was contacted in a prior campaign (source pdays != 999).
+      - name: poutcome
+        description: Outcome of the previous marketing campaign.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['failure', 'nonexistent', 'success']
+      - name: emp_var_rate
+        description: Employment variation rate (quarterly macro indicator).
+      - name: cons_price_idx
+        description: Consumer price index (monthly macro indicator).
+      - name: cons_conf_idx
+        description: Consumer confidence index (monthly macro indicator).
+      - name: euribor3m
+        description: Euribor 3-month rate (daily macro indicator).
+      - name: nr_employed
+        description: Number of employees (quarterly macro indicator).
+      - name: subscribed
+        description: Outcome — did the client subscribe to a term deposit? (source `y` == 'yes').

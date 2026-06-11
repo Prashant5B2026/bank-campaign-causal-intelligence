@@ -18,11 +18,15 @@ clean-targets:
 
 # Layered datasets. The custom generate_schema_name macro maps these to the
 # literal BigQuery datasets `staging` and `marts` (and `raw` is the source).
+# Intermediate models are ephemeral: they compile into CTEs inside the marts
+# that ref them, so they never materialise as their own relations.
 models:
   bank_campaign:
     staging:
       +schema: staging
       +materialized: view
+    intermediate:
+      +materialized: ephemeral
     marts:
       +schema: marts
       +materialized: table

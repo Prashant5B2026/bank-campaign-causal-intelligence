@@ -1,0 +1,77 @@
+version: 2
+
+# Intermediate models are ephemeral (compiled into CTEs inside the marts that
+# ref them), so they have no materialised relation to run data tests against —
+# this file documents them only. Grain/uniqueness is enforced on the marts.
+
+models:
+  - name: int_customer_profile
+    description: >
+      One row per contact_id with the customer's demographic profile (age,
+      age_bucket, job, marital, education) and financial signals (has_default,
+      has_housing_loan, has_personal_loan). Pure derivations from staging.
+    columns:
+      - name: contact_id
+        description: Surrogate key from staging.
+      - name: age
+        description: Client age in years.
+      - name: age_bucket
+        description: "Age band: under_30 / 30_to_45 (30-44) / 45_to_60 (45-59) / 60_plus."
+      - name: job
+        description: Type of job.
+      - name: marital
+        description: Marital status.
+      - name: education
+        description: Highest education level.
+      - name: has_default
+        description: TRUE if the client has credit in default (credit_default == 'yes'; 'unknown' treated as FALSE).
+      - name: has_housing_loan
+        description: TRUE if the client has a housing loan (housing_loan == 'yes'; 'unknown' treated as FALSE).
+      - name: has_personal_loan
+        description: TRUE if the client has a personal loan (personal_loan == 'yes'; 'unknown' treated as FALSE).
+
+  - name: int_campaign_features
+    description: >
+      One row per contact_id with campaign-specific features: contact counts in
+      this and prior campaigns, the prior-campaign outcome, recency, and the
+      channel/month/day-of-week of contact.
+    columns:
+      - name: contact_id
+        description: Surrogate key from staging.
+      - name: n_contacts_this_campaign
+        description: Contacts during this campaign for this client (source `campaign`).
+      - name: n_contacts_prior
+        description: Contacts before this campaign for this client (source `previous`).
+      - name: prior_outcome
+        description: Outcome of the previous campaign (source `poutcome`).
+      - name: days_since_last_contact
+        description: Days since last prior contact; NULL if never previously contacted.
+      - name: was_previously_contacted
+        description: TRUE when the client was contacted in a prior campaign.
+      - name: contact_channel
+        description: Communication channel (cellular/telephone).
+      - name: contact_month
+        description: Month of last contact.
+      - name: contact_dow
+        description: Day of week of last contact.
+
+  - name: int_macro_context
+    description: >
+      One row per contact_id joined to the five macro-economic indicators at the
+      time of contact. CAUSAL NOTE: these are the macro CONFOUNDERS for the Day 5
+      causal analysis — they drive both the bank's propensity to call and a
+      client's propensity to subscribe, so the causal estimate must adjust for
+      them.
+    columns:
+      - name: contact_id
+        description: Surrogate key from staging.
+      - name: emp_var_rate
+        description: Employment variation rate (confounder).
+      - name: cons_price_idx
+        description: Consumer price index (confounder).
+      - name: cons_conf_idx
+        description: Consumer confidence index (confounder).
+      - name: euribor3m
+        description: Euribor 3-month rate (confounder).
+      - name: nr_employed
+        description: Number of employees (confounder).

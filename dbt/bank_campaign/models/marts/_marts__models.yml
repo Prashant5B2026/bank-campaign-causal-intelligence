@@ -1,0 +1,132 @@
+version: 2
+
+models:
+  - name: mart_customers
+    description: >
+      One row per customer contact: demographic and financial profile plus the
+      subscription outcome. The customer-centric analysis table.
+    columns:
+      - name: contact_id
+        description: Surrogate primary key — one row per contact.
+        tests:
+          - not_null
+          - unique
+      - name: age
+        description: Client age in years.
+      - name: age_bucket
+        description: "Age band: under_30 / 30_to_45 (30-44) / 45_to_60 (45-59) / 60_plus."
+      - name: job
+        description: Type of job.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['admin.', 'blue-collar', 'entrepreneur', 'housemaid', 'management', 'retired', 'self-employed', 'services', 'student', 'technician', 'unemployed', 'unknown']
+      - name: marital
+        description: Marital status.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['divorced', 'married', 'single', 'unknown']
+      - name: education
+        description: Highest education level.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['basic.4y', 'basic.6y', 'basic.9y', 'high.school', 'illiterate', 'professional.course', 'university.degree', 'unknown']
+      - name: has_default
+        description: TRUE if the client has credit in default ('unknown' treated as FALSE).
+      - name: has_housing_loan
+        description: TRUE if the client has a housing loan ('unknown' treated as FALSE).
+      - name: has_personal_loan
+        description: TRUE if the client has a personal loan ('unknown' treated as FALSE).
+      - name: subscribed
+        description: Outcome — TRUE if the client subscribed to a term deposit (source `y` == 'yes').
+
+  - name: mart_campaign_outcomes
+    description: >
+      One row per contact: campaign features + macro-economic context + the
+      subscription outcome. The primary analysis table for Days 3-5, including
+      the Day 5 causal work (the macro columns are the confounders). NOTE:
+      `duration` (call length) is deliberately excluded as a leakage feature —
+      it is known only after a call ends and trivially predicts the outcome.
+    columns:
+      - name: contact_id
+        description: Surrogate primary key — one row per contact.
+        tests:
+          - not_null
+          - unique
+      - name: n_contacts_this_campaign
+        description: Number of contacts during this campaign for this client (includes the last contact).
+      - name: n_contacts_prior
+        description: Number of contacts before this campaign for this client.
+      - name: prior_outcome
+        description: Outcome of the previous marketing campaign (source `poutcome`).
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['failure', 'nonexistent', 'success']
+      - name: days_since_last_contact
+        description: Days since the client was last contacted in a prior campaign; NULL when never previously contacted (source pdays==999).
+      - name: was_previously_contacted
+        description: TRUE when the client was contacted in a prior campaign (source pdays != 999).
+      - name: contact_channel
+        description: Communication channel of the last contact.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['cellular', 'telephone']
+      - name: contact_month
+        description: Month of the last contact.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+      - name: contact_dow
+        description: Day of week of the last contact.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['mon', 'tue', 'wed', 'thu', 'fri']
+      - name: emp_var_rate
+        description: Employment variation rate at time of contact. Macro confounder for the causal analysis.
+      - name: cons_price_idx
+        description: Consumer price index at time of contact. Macro confounder for the causal analysis.
+      - name: cons_conf_idx
+        description: Consumer confidence index at time of contact. Macro confounder for the causal analysis.
+      - name: euribor3m
+        description: Euribor 3-month rate at time of contact. Macro confounder for the causal analysis.
+      - name: nr_employed
+        description: Number of employees at time of contact. Macro confounder for the causal analysis.
+      - name: subscribed
+        description: Outcome — TRUE if the client subscribed to a term deposit (source `y` == 'yes').
+
+  - name: mart_segment_summary
+    description: >
+      Subscription performance aggregated by customer segment
+      (job x age_bucket x education). One row per segment; powers quick
+      segmentation views. No contact-level grain.
+    columns:
+      - name: job
+        description: Type of job (segment dimension).
+        tests:
+          - not_null
+      - name: age_bucket
+        description: Age band (segment dimension).
+        tests:
+          - not_null
+      - name: education
+        description: Highest education level (segment dimension).
+        tests:
+          - not_null
+      - name: n_contacts
+        description: Number of contacts in the segment.
+        tests:
+          - not_null
+      - name: n_subscribed
+        description: Number of contacts in the segment who subscribed.
+        tests:
+          - not_null
+      - name: subscription_rate
+        description: n_subscribed / n_contacts for the segment.
+        tests:
+          - not_null
