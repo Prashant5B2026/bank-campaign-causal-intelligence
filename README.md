@@ -27,6 +27,12 @@ Two data hazards are handled explicitly from day one:
   never previously contacted. It is loaded as-is into `raw` and converted to
   `NULL` in the staging layer.
 
+> **The Day 3 punchline** ([full findings →](#headline-findings)): the campaign's
+> most flattering numbers are also its most confounded. Calling clients *more*
+> tracks *lower* subscription (13.0% → 5.5%), and a single pre-existing signal —
+> prior-campaign success — converts at **5.8× the base rate**. Sorting real
+> effect from selection is what Day 5 is for.
+
 ## Stack
 
 | Layer            | Tool                                    |
@@ -118,7 +124,12 @@ bank-campaign-causal-intelligence/
 │       │   ├── intermediate/       # int_ ephemeral: profile / campaign / macro
 │       │   └── marts/              # mart_ tables: analysis-ready
 │       └── tests/                  # custom singular tests
-├── notebooks/                      # exploratory analysis
+├── notebooks/                      # Day 3 EDA, runs against BigQuery
+│   ├── 01_subscription_landscape.ipynb   # who subscribes (demographics)
+│   └── 02_campaign_strategy.ipynb        # which tactics look effective
+├── reports/figures/                # exported chart PNGs (~10)
+├── docs/
+│   └── findings.md                 # quantified findings write-up (Section 1)
 ├── dashboards/                     # Streamlit / Power BI artifacts
 ├── credentials/                    # service-account key (git-ignored)
 ├── requirements.txt
@@ -127,7 +138,7 @@ bank-campaign-causal-intelligence/
 
 ## Status
 
-**Day 2 of 7 — dbt modelling layer complete.**
+**Day 3 of 7 — descriptive analytics complete.**
 
 - [x] Project scaffolding, `.gitignore`, pinned `requirements.txt`
 - [x] Python ingestion script with explicit BigQuery schema
@@ -135,7 +146,9 @@ bank-campaign-causal-intelligence/
 - [x] Full dbt DAG: staging (views) → intermediate (ephemeral) → marts (tables)
 - [x] Tests pass 100% (`dbt test` → 31/31), incl. 2 custom singular tests
 - [x] Browsable `dbt docs` with every mart column documented
-- [ ] Days 3–4: EDA & predictive modelling (leakage-aware)
+- [x] Day 3: descriptive EDA — subscription landscape & campaign strategy, ~10
+      figures, quantified findings ([`docs/findings.md`](docs/findings.md))
+- [ ] Day 4: predictive modelling (leakage-aware)
 - [ ] Day 5: **causal analysis** — campaign effect vs. selection, adjusting for macro confounders
 - [ ] Days 6–7: dashboard & write-up
 
@@ -163,7 +176,49 @@ bank-campaign-causal-intelligence/
    dbt debug --profiles-dir .
    dbt run --profiles-dir .
    ```
+6. Run the Day-3 analysis notebooks (each queries BigQuery and regenerates the
+   ~10 PNGs in `reports/figures/` plus the numbers behind `docs/findings.md`):
+   ```powershell
+   $env:GOOGLE_APPLICATION_CREDENTIALS = "$PWD\credentials\service-account.json"
+   jupyter nbconvert --to notebook --execute --inplace `
+     notebooks\01_subscription_landscape.ipynb `
+     notebooks\02_campaign_strategy.ipynb
+   ```
 
 ## Headline Findings
 
-_TBD — populated after the Day 5 causal analysis._
+> Full quantified write-up: **[`docs/findings.md`](docs/findings.md)** ·
+> reproduced live from BigQuery in **[`notebooks/`](notebooks/)**. Every rate is
+> anchored to the **11.3% overall subscription base rate** (4,640 / 41,188
+> contacts).
+
+**The campaign's most "effective" tactics are exactly where selection bias
+hides — which is the whole point of this project.**
+
+- **More calls, _fewer_ subscriptions.** Subscription falls *monotonically* from
+  **13.0% on the 1st contact to 5.5% at 6+ contacts**. The intuitive
+  "persistence pays" story isn't even directionally true — a textbook signature
+  of reverse causation (clients who say yes leave the call list, so high contact
+  counts pile up among the hard "no"s).
+
+  ![Subscription rate by number of contacts](reports/figures/subscription_rate_by_n_contacts.png)
+
+- **One variable dwarfs everything: prior success.** Clients whose *previous*
+  campaign ended in success subscribe at **65.1% — 5.8× the base rate** — versus
+  8.8% for never-contacted clients. The dominant predictor *and* the dominant
+  confounder for the Day 5 causal work.
+
+  ![Subscription rate by prior campaign outcome](reports/figures/subscription_rate_by_prior_outcome.png)
+
+- **Demographics are life-stage, not marketing.** Students (31.4%) and retired
+  clients (25.2%) convert 2–3× base; blue-collar workers (6.9%) convert below it
+  — a **4.6× spread** that mostly tracks age, not any contact strategy.
+- **Channel looks decisive — on the surface.** Cellular converts at **14.7% vs
+  5.2%** for telephone (2.8×), but channel is entangled with era and client mix.
+- **Timing is a volume mirage.** May carries **33% of all contacts at a
+  below-base 6.4% rate**, while sub-2%-volume months (Mar, Sep, Oct, Dec) convert
+  at 44–51%. Reading the rate alone would point you at exactly the wrong month.
+
+Every one of these is a *correlation with a selection story attached*.
+Quantifying how much survives adjustment for confounders — i.e. whether the
+campaign actually **worked** — is the Day 5 centrepiece.
