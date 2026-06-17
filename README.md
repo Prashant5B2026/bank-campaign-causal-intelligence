@@ -15,7 +15,7 @@ effect of the campaign rather than just its correlation with subscriptions.
 Whether a client subscribed to a term deposit is easy to correlate with contact
 activity. The harder question is causal: how much of the observed uplift comes
 from the campaign itself versus selection in who got contacted. That is the
-focus of Day 5.
+focus of the causal analysis.
 
 Two data hazards are handled from the start:
 
@@ -29,7 +29,8 @@ Two data hazards are handled from the start:
 A short preview of what the analysis found ([full write-up](#headline-findings)):
 calling clients more often goes with *lower* subscription (13.0% down to 5.5%),
 and a single pre-existing signal, prior-campaign success, converts at about 5.8x
-the base rate. Separating real effect from selection is the job of Day 5.
+the base rate. Separating real effect from selection is the job of the causal
+analysis below.
 
 ## Stack
 
@@ -86,7 +87,7 @@ flowchart LR
 | Mart | Grain | What it's for |
 | ---- | ----- | ------------- |
 | `mart_customers` | one row per contact | Demographic and financial profile plus the subscription outcome. The customer-centric view. |
-| `mart_campaign_outcomes` | one row per contact | Campaign features, macro context, and outcome. The primary analysis table for Days 3 to 5, including the causal work (the macro columns are the confounders). |
+| `mart_campaign_outcomes` | one row per contact | Campaign features, macro context, and outcome. The primary analysis table for the EDA and the causal work (the macro columns are the confounders). |
 | `mart_segment_summary` | one row per (job, age_bucket, education) | Subscription rate, contacts, and subscribers per segment, for quick segmentation views. |
 
 Two hazards are encoded in the models, not just the docs: `duration` is dropped
@@ -125,10 +126,12 @@ bank-campaign-causal-intelligence/
 │   ├── 01_subscription_landscape.ipynb   # who subscribes (demographics)
 │   ├── 02_campaign_strategy.ipynb        # which tactics look effective
 │   ├── 03_experiment_design.ipynb        # contact-cap A/B test design + sample size
-│   └── 04_quasi_experiment.ipynb         # observational treatment/control + balance check
+│   ├── 04_quasi_experiment.ipynb         # observational treatment/control + balance check
+│   └── 05_causal_contact_effect.ipynb    # stratification + standardization, contact effect
 ├── reports/figures/                # exported chart PNGs
 ├── docs/
-│   └── findings.md                 # quantified findings write-up
+│   ├── findings.md                 # quantified findings write-up
+│   └── interview_script.md         # 90-second and 30-second walk-throughs
 ├── dashboards/                     # Streamlit / Power BI artifacts
 ├── credentials/                    # service-account key (git-ignored)
 ├── requirements.txt
@@ -137,7 +140,8 @@ bank-campaign-causal-intelligence/
 
 ## Status
 
-Day 4 of 7. Experiment design and the observational quasi-experiment are done.
+The data model and the analysis through the causal step are complete. The
+dashboard and final write-up are next.
 
 - [x] Project scaffolding, `.gitignore`, pinned `requirements.txt`
 - [x] Python ingestion script with explicit BigQuery schema
@@ -145,14 +149,15 @@ Day 4 of 7. Experiment design and the observational quasi-experiment are done.
 - [x] Full dbt DAG: staging (views) to intermediate (ephemeral) to marts (tables)
 - [x] Tests pass 100% (`dbt test`, 31/31), including 2 custom singular tests
 - [x] Browsable `dbt docs` with every mart column documented
-- [x] Day 3: descriptive EDA on the subscription landscape and campaign strategy,
-      with figures and a quantified write-up ([`docs/findings.md`](docs/findings.md))
-- [x] Day 4: contact-cap experiment design (sample size derived by hand) and an
+- [x] Descriptive EDA on the subscription landscape and campaign strategy, with
+      figures and a quantified write-up ([`docs/findings.md`](docs/findings.md))
+- [x] Contact-cap experiment design (sample size derived by hand) and an
       observational quasi-experiment (Wilson CIs, two-proportion z-test, and a
       chi-square balance check showing the groups are not comparable)
-- [ ] Day 5: causal analysis, campaign effect versus selection, adjusting for the
-      macro confounders
-- [ ] Days 6 to 7: dashboard and write-up
+- [x] Causal analysis of contact frequency: stratification and standardization
+      with a hand-written bootstrap, plus an interview script
+      ([`docs/interview_script.md`](docs/interview_script.md))
+- [ ] Dashboard and final write-up
 
 ## Setup
 
@@ -186,7 +191,8 @@ Day 4 of 7. Experiment design and the observational quasi-experiment are done.
      notebooks\01_subscription_landscape.ipynb `
      notebooks\02_campaign_strategy.ipynb `
      notebooks\03_experiment_design.ipynb `
-     notebooks\04_quasi_experiment.ipynb
+     notebooks\04_quasi_experiment.ipynb `
+     notebooks\05_causal_contact_effect.ipynb
    ```
 
 ## Headline Findings
@@ -210,7 +216,7 @@ worth doing.
 - Prior success is the strongest signal. Clients whose previous campaign ended in
   success subscribe at 65.1%, about 5.8x the base rate, versus 8.8% for clients
   never contacted before. It is the strongest predictor and also the strongest
-  confounder for the Day 5 work.
+  confounder for the causal analysis.
 
   ![Subscription rate by prior campaign outcome](reports/figures/subscription_rate_by_prior_outcome.png)
 
@@ -225,6 +231,11 @@ worth doing.
   convert at 44 to 51%. Reading the rate without the volume would point you at
   the wrong month.
 
-Each of these is a correlation with a selection story behind it. Measuring how
-much survives once you adjust for the confounders, that is, whether the campaign
-actually worked, is the Day 5 task.
+Each of these is a correlation with a selection story behind it. The causal
+analysis measures how much survives once the confounders are accounted for. For
+contact frequency, the naive effect of more contacts is -3.74pp, but after
+stratifying by prior engagement and standardizing (with a hand-written
+bootstrap), it shrinks to -2.39pp [95% CI -2.98, -1.76]. About a third of the
+apparent harm was selection (easy converters leaving the call list early), and a
+smaller, still-negative effect remains. Details in
+[`docs/findings.md`](docs/findings.md) Section 5.

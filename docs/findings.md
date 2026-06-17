@@ -180,8 +180,8 @@ framed like an experiment, while being clear that the groups are not randomized.
   mildly skewed: education is actually balanced (chi-square 5.2, p=0.64), and job
   (p=7e-4) and marital (p=0.03) shift only a little. The campaign-engagement
   covariates are imbalanced by a huge margin: prior outcome chi-square 252,
-  p≈1.6e-55; contact month chi-square 764, p≈1e-158; channel p≈3e-31; the
-  prior-contact flag p≈8e-28.
+  p~1.6e-55; contact month chi-square 764, p~1e-158; channel p~3e-31; the
+  prior-contact flag p~8e-28.
   Figure: [quasi_covariate_imbalance.png](../reports/figures/quasi_covariate_imbalance.png)
 - The confounder is the same one from Day 3. The Treatment group is 2.7x richer
   in previously-successful clients (3.78% versus 1.38%) and lighter in
@@ -208,3 +208,74 @@ is genuine and large, but the subscription effect is only bounded, not estimated
 Day 5 measures that confounding, adjusting for prior outcome, channel, and macro
 context, and turns these bounds into an estimate of whether a contact cap helps,
 hurts, or is roughly free.
+
+---
+
+## Section 5: Causal Analysis: Does Persistence Hurt, or Are Subscribers Just Leaving Early?
+
+Source notebook:
+[`notebooks/05_causal_contact_effect.ipynb`](../notebooks/05_causal_contact_effect.ipynb).
+Method: stratification and standardization with weighted means (the g-formula
+with stratum weights). Pandas and numpy only, with the Wilson interval and the
+bootstrap written out by hand; no regression or machine learning. Treatment = 3
+or more contacts this campaign; Control = fewer than 3.
+
+The naive comparison makes persistence look harmful. Clients with 3 or more
+contacts subscribe at 8.70% (n=12,976) versus 12.45% for those with fewer than 3
+(n=28,212), a naive ATE of -3.74pp (bootstrap 95% CI [-4.30, -3.10]).
+Figure: [naive_ate.png](../reports/figures/naive_ate.png)
+
+But the two arms are not comparable. The low-contact Control group holds more
+prior-success clients (4.0% versus 1.9% in Treatment) and more prior failures
+(11.7% versus 7.3%), while Treatment is almost entirely never-contacted cold
+leads (90.8% `nonexistent`). Prior-success clients convert at about 60 to 66%,
+and they reached low contact counts because they said yes early. So the
+high-contact bucket is structurally the harder-to-convert pool. Comparing within
+each `prior_outcome` stratum shrinks the effect at every level (`nonexistent`
+-2.3pp, `failure` -1.0pp, `success` -7.9pp).
+Figure: [stratum_ates.png](../reports/figures/stratum_ates.png)
+
+Standardizing those within-stratum effects back to the full population gives an
+ATE of -2.39pp (bootstrap 95% CI [-2.98, -1.76]). Triangulating with age_bucket
+as the stratifier instead gives -3.41pp ([-4.00, -2.78]), barely different from
+the naive number, which confirms that prior engagement, not age, is the
+confounder doing the work.
+Figure: [ate_comparison.png](../reports/figures/ate_comparison.png)
+
+| Method                          | ATE (pp) | 95% CI           |
+| ------------------------------- | -------- | ---------------- |
+| Naive (raw)                     | -3.74    | [-4.30, -3.10]   |
+| Standardized by prior_outcome   | -2.39    | [-2.98, -1.76]   |
+| Standardized by age_bucket      | -3.41    | [-4.00, -2.78]   |
+
+The gap between the naive row and the prior_outcome row, about 1.35pp or 36% of
+the naive effect, is the selection effect from easy converters leaving the call
+list early.
+
+How much was real and how much was selection. Roughly a third of the naive harm
+was selection: prior-success clients said yes on an early call and never reached
+high contact counts, which pushed the low-contact group's rate up and made
+contact look worse than it is. The other two thirds survive adjustment. The
+effect stays negative inside every stratum, including prior-success, so the
+honest answer is "both, but not equally": subscribers leaving early explains a
+real part of the steep raw gradient, and a smaller, still-negative contact effect
+of about -2.4pp remains after adjusting for prior engagement. Persistence does
+not appear to help, and it may modestly hurt.
+
+Business implication. Three moves follow, in order of confidence. First, a
+contact cap is low-risk: no stratum shows any gain from more contacts, and Day 4
+showed a cap at 3 would save about 26% of all calls, so the bank can cut volume
+without an expected loss in subscriptions. Second, reallocate budget toward
+`prior_outcome=success` clients, who convert at 58 to 66% versus an 11.3% base;
+they are by far the highest-yield pool and should be contacted, but lightly,
+since extra contacts reduce their conversion the most. Third, stop spending hard
+on `prior_outcome=failure` clients: they convert at about 13 to 14% and extra
+contacts move them by only about -1pp, so persistence does not rescue them.
+
+Limitations. Stratification only adjusts for the variables we stratify on. This
+analysis controls for prior outcome and age, but unmeasured confounders such as
+income, urgency to save, or existing product holdings are not captured and could
+still bias the standardized estimate. This is an observational adjustment, not a
+randomized experiment, so the remaining -2.4pp should be read as a well-adjusted
+association rather than a proven causal effect. The randomized test that would
+settle it is specified in Section 2.
