@@ -23,6 +23,3 @@ streamlit==1.58.0
 # --- Notebooks (Day 3+ EDA: run end-to-end with `jupyter nbconvert --execute`) ---
 ipykernel==7.3.0
 nbconvert==7.17.1
-
-# --- Narrative / LLM ---
-anthropic==0.107.0
