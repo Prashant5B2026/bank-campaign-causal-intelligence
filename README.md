@@ -3,35 +3,33 @@
 ## Overview
 
 An analytics-engineering project on the [UCI Bank Marketing dataset](https://archive.ics.uci.edu/dataset/222/bank+marketing)
-(~41,000 contacts from a Portuguese bank's direct-marketing campaigns). The
-data is ingested into BigQuery, modelled with dbt, and analysed for the causal
-effect of the campaign — not just its correlation with subscriptions.
+(about 41,000 contacts from a Portuguese bank's direct-marketing campaigns). The
+data is loaded into BigQuery, modelled with dbt, and analysed for the *causal*
+effect of the campaign rather than just its correlation with subscriptions.
 
 ## The Question
 
-> **Did the marketing campaign actually work, or did the bank just keep calling
-> people who would have said yes anyway?**
+> Did the marketing campaign actually work, or did the bank mostly keep calling
+> people who would have said yes anyway?
 
-The headline metric (whether a client subscribed to a term deposit) is easy to
-correlate with contact activity. The harder, more honest question is *causal*:
-how much of the observed uplift is attributable to the campaign itself versus
-selection effects in who got contacted. That analysis is the centrepiece
-(Day 5).
+Whether a client subscribed to a term deposit is easy to correlate with contact
+activity. The harder question is causal: how much of the observed uplift comes
+from the campaign itself versus selection in who got contacted. That is the
+focus of Day 5.
 
-Two data hazards are handled explicitly from day one:
+Two data hazards are handled from the start:
 
-- **`duration` is leakage.** Call duration is only known *after* a call ends, so
-  it trivially predicts the outcome. It is flagged and excluded from all
+- `duration` is leakage. Call duration is only known after a call ends, so it
+  trivially predicts the outcome. It is flagged and excluded from all
   causal/predictive work.
-- **`pdays == 999` is a sentinel**, not a real value — it means the client was
-  never previously contacted. It is loaded as-is into `raw` and converted to
-  `NULL` in the staging layer.
+- `pdays == 999` is a sentinel, not a real value. It means the client was never
+  previously contacted. It is loaded as-is into `raw` and converted to `NULL` in
+  the staging layer.
 
-> **The Day 3 punchline** ([full findings →](#headline-findings)): the campaign's
-> most flattering numbers are also its most confounded. Calling clients *more*
-> tracks *lower* subscription (13.0% → 5.5%), and a single pre-existing signal —
-> prior-campaign success — converts at **5.8× the base rate**. Sorting real
-> effect from selection is what Day 5 is for.
+A short preview of what the analysis found ([full write-up](#headline-findings)):
+calling clients more often goes with *lower* subscription (13.0% down to 5.5%),
+and a single pre-existing signal, prior-campaign success, converts at about 5.8x
+the base rate. Separating real effect from selection is the job of Day 5.
 
 ## Stack
 
@@ -39,21 +37,20 @@ Two data hazards are handled explicitly from day one:
 | ---------------- | --------------------------------------- |
 | Warehouse        | Google BigQuery (free tier)             |
 | Ingestion        | Python (`google-cloud-bigquery`, pandas)|
-| Transformation   | dbt (`dbt-bigquery`), layered raw → staging → marts |
-| Analysis         | scikit-learn, scipy, statsmodels-style causal methods |
+| Transformation   | dbt (`dbt-bigquery`), layered raw to staging to marts |
+| Analysis         | scikit-learn, scipy, statsmodels-style methods |
 | Visualisation    | matplotlib, seaborn, Streamlit, Power BI|
-| Narrative / docs | Anthropic API                           |
 
-Auth is via a **service account** (not user auth) for reproducibility, and the
-BigQuery schema is **explicitly typed** (no autodetect).
+Auth is via a service account (not user auth) for reproducibility, and the
+BigQuery schema is explicitly typed (no autodetect).
 
 ## Data Model
 
-The dbt project is layered raw → staging → intermediate → marts. Staging models
-are **views** (cheap, always-fresh cleaning), intermediate models are
-**ephemeral** (compiled into CTEs, never materialised), and marts are **tables**
-(the stable analysis surface). No `SELECT *` anywhere — every column is explicit
-at every layer.
+The dbt project is layered raw, staging, intermediate, marts. Staging models are
+views (cheap, always-fresh cleaning), intermediate models are ephemeral
+(compiled into CTEs, never materialised), and marts are tables (the stable
+analysis surface). There is no `SELECT *` anywhere; every column is listed
+explicitly at every layer.
 
 ```mermaid
 flowchart LR
@@ -88,23 +85,23 @@ flowchart LR
 
 | Mart | Grain | What it's for |
 | ---- | ----- | ------------- |
-| `mart_customers` | one row per contact | Demographic + financial profile and the subscription outcome — the customer-centric view. |
-| `mart_campaign_outcomes` | one row per contact | Campaign features + macro context + outcome — the primary analysis table for Days 3–5, including the **causal** work (the macro columns are the confounders). |
-| `mart_segment_summary` | one row per (job × age_bucket × education) | Subscription rate, contacts, and subscribers per segment — quick segmentation views. |
+| `mart_customers` | one row per contact | Demographic and financial profile plus the subscription outcome. The customer-centric view. |
+| `mart_campaign_outcomes` | one row per contact | Campaign features, macro context, and outcome. The primary analysis table for Days 3 to 5, including the causal work (the macro columns are the confounders). |
+| `mart_segment_summary` | one row per (job, age_bucket, education) | Subscription rate, contacts, and subscribers per segment, for quick segmentation views. |
 
 Two hazards are encoded in the models, not just the docs: `duration` is dropped
-at the mart layer as a **leakage** feature, and `pdays == 999` becomes
+at the mart layer as a leakage feature, and `pdays == 999` becomes
 `days_since_last_contact = NULL` with an explicit `was_previously_contacted`
-flag. Both are enforced by tests (`dbt test` → **31 passing**), including custom
-singular tests asserting the overall subscription rate is plausible (~11%) and
-that the pdays-null/flag invariant holds.
+flag. Both are enforced by tests (`dbt test` passes 31 checks), including two
+custom singular tests that assert the overall subscription rate is plausible
+(around 11%) and that the pdays-null/flag invariant holds.
 
 ### Generated documentation
 
 `dbt docs generate && dbt docs serve` produces a browsable catalog with every
 mart column described and every test surfaced:
 
-![dbt docs — mart_campaign_outcomes](reports/figures/dbt_docs.png)
+![dbt docs for mart_campaign_outcomes](reports/figures/dbt_docs.png)
 
 ## Project Structure
 
@@ -124,12 +121,14 @@ bank-campaign-causal-intelligence/
 │       │   ├── intermediate/       # int_ ephemeral: profile / campaign / macro
 │       │   └── marts/              # mart_ tables: analysis-ready
 │       └── tests/                  # custom singular tests
-├── notebooks/                      # Day 3 EDA, runs against BigQuery
+├── notebooks/                      # EDA + experiment analysis, runs against BigQuery
 │   ├── 01_subscription_landscape.ipynb   # who subscribes (demographics)
-│   └── 02_campaign_strategy.ipynb        # which tactics look effective
-├── reports/figures/                # exported chart PNGs (~10)
+│   ├── 02_campaign_strategy.ipynb        # which tactics look effective
+│   ├── 03_experiment_design.ipynb        # contact-cap A/B test design + sample size
+│   └── 04_quasi_experiment.ipynb         # observational treatment/control + balance check
+├── reports/figures/                # exported chart PNGs
 ├── docs/
-│   └── findings.md                 # quantified findings write-up (Section 1)
+│   └── findings.md                 # quantified findings write-up
 ├── dashboards/                     # Streamlit / Power BI artifacts
 ├── credentials/                    # service-account key (git-ignored)
 ├── requirements.txt
@@ -138,25 +137,28 @@ bank-campaign-causal-intelligence/
 
 ## Status
 
-**Day 3 of 7 — descriptive analytics complete.**
+Day 4 of 7. Experiment design and the observational quasi-experiment are done.
 
 - [x] Project scaffolding, `.gitignore`, pinned `requirements.txt`
 - [x] Python ingestion script with explicit BigQuery schema
-- [x] dbt project initialised (raw / staging / marts), service-account auth
-- [x] Full dbt DAG: staging (views) → intermediate (ephemeral) → marts (tables)
-- [x] Tests pass 100% (`dbt test` → 31/31), incl. 2 custom singular tests
+- [x] dbt project set up (raw / staging / marts), service-account auth
+- [x] Full dbt DAG: staging (views) to intermediate (ephemeral) to marts (tables)
+- [x] Tests pass 100% (`dbt test`, 31/31), including 2 custom singular tests
 - [x] Browsable `dbt docs` with every mart column documented
-- [x] Day 3: descriptive EDA — subscription landscape & campaign strategy, ~10
-      figures, quantified findings ([`docs/findings.md`](docs/findings.md))
-- [ ] Day 4: predictive modelling (leakage-aware)
-- [ ] Day 5: **causal analysis** — campaign effect vs. selection, adjusting for macro confounders
-- [ ] Days 6–7: dashboard & write-up
+- [x] Day 3: descriptive EDA on the subscription landscape and campaign strategy,
+      with figures and a quantified write-up ([`docs/findings.md`](docs/findings.md))
+- [x] Day 4: contact-cap experiment design (sample size derived by hand) and an
+      observational quasi-experiment (Wilson CIs, two-proportion z-test, and a
+      chi-square balance check showing the groups are not comparable)
+- [ ] Day 5: causal analysis, campaign effect versus selection, adjusting for the
+      macro confounders
+- [ ] Days 6 to 7: dashboard and write-up
 
 ## Setup
 
 1. Create a GCP project `bank-campaign-causal` with BigQuery enabled (free tier).
-2. Create a service account, grant it **BigQuery Data Editor** + **BigQuery Job
-   User**, download its JSON key to `credentials/service-account.json`.
+2. Create a service account, grant it BigQuery Data Editor and BigQuery Job
+   User, download its JSON key to `credentials/service-account.json`.
 3. Create and populate the environment:
    ```powershell
    python -m venv .venv
@@ -176,49 +178,53 @@ bank-campaign-causal-intelligence/
    dbt debug --profiles-dir .
    dbt run --profiles-dir .
    ```
-6. Run the Day-3 analysis notebooks (each queries BigQuery and regenerates the
-   ~10 PNGs in `reports/figures/` plus the numbers behind `docs/findings.md`):
+6. Run the analysis notebooks (each queries BigQuery and regenerates the PNGs in
+   `reports/figures/` plus the numbers behind `docs/findings.md`):
    ```powershell
    $env:GOOGLE_APPLICATION_CREDENTIALS = "$PWD\credentials\service-account.json"
    jupyter nbconvert --to notebook --execute --inplace `
      notebooks\01_subscription_landscape.ipynb `
-     notebooks\02_campaign_strategy.ipynb
+     notebooks\02_campaign_strategy.ipynb `
+     notebooks\03_experiment_design.ipynb `
+     notebooks\04_quasi_experiment.ipynb
    ```
 
 ## Headline Findings
 
-> Full quantified write-up: **[`docs/findings.md`](docs/findings.md)** ·
-> reproduced live from BigQuery in **[`notebooks/`](notebooks/)**. Every rate is
-> anchored to the **11.3% overall subscription base rate** (4,640 / 41,188
-> contacts).
+Full write-up: [`docs/findings.md`](docs/findings.md), reproduced live from
+BigQuery in the [`notebooks/`](notebooks/). Every rate is compared against the
+overall subscription base rate of 11.3% (4,640 of 41,188 contacts).
 
-**The campaign's most "effective" tactics are exactly where selection bias
-hides — which is the whole point of this project.**
+The short version: the tactics that look most effective at first glance are also
+the ones most affected by selection bias, which is what makes the causal step
+worth doing.
 
-- **More calls, _fewer_ subscriptions.** Subscription falls *monotonically* from
-  **13.0% on the 1st contact to 5.5% at 6+ contacts**. The intuitive
-  "persistence pays" story isn't even directionally true — a textbook signature
-  of reverse causation (clients who say yes leave the call list, so high contact
-  counts pile up among the hard "no"s).
+- More calls go with fewer subscriptions. The subscription rate falls steadily
+  from 13.0% on the 1st contact to 5.5% at 6 or more contacts. The "persistence
+  pays" story is not even directionally true in the raw data, which is what you
+  would expect if clients who say yes leave the call list and the high contact
+  counts pile up among the harder "no" cases.
 
   ![Subscription rate by number of contacts](reports/figures/subscription_rate_by_n_contacts.png)
 
-- **One variable dwarfs everything: prior success.** Clients whose *previous*
-  campaign ended in success subscribe at **65.1% — 5.8× the base rate** — versus
-  8.8% for never-contacted clients. The dominant predictor *and* the dominant
-  confounder for the Day 5 causal work.
+- Prior success is the strongest signal. Clients whose previous campaign ended in
+  success subscribe at 65.1%, about 5.8x the base rate, versus 8.8% for clients
+  never contacted before. It is the strongest predictor and also the strongest
+  confounder for the Day 5 work.
 
   ![Subscription rate by prior campaign outcome](reports/figures/subscription_rate_by_prior_outcome.png)
 
-- **Demographics are life-stage, not marketing.** Students (31.4%) and retired
-  clients (25.2%) convert 2–3× base; blue-collar workers (6.9%) convert below it
-  — a **4.6× spread** that mostly tracks age, not any contact strategy.
-- **Channel looks decisive — on the surface.** Cellular converts at **14.7% vs
-  5.2%** for telephone (2.8×), but channel is entangled with era and client mix.
-- **Timing is a volume mirage.** May carries **33% of all contacts at a
-  below-base 6.4% rate**, while sub-2%-volume months (Mar, Sep, Oct, Dec) convert
-  at 44–51%. Reading the rate alone would point you at exactly the wrong month.
+- Demographics mostly reflect life stage. Students (31.4%) and retired clients
+  (25.2%) convert 2 to 3 times the base rate, while blue-collar workers (6.9%)
+  convert below it, a 4.6x spread that largely tracks age rather than any contact
+  strategy.
+- Channel looks decisive on the surface. Cellular converts at 14.7% versus 5.2%
+  for telephone (2.8x), but channel is mixed up with era and client type.
+- Timing is mostly volume. May holds 33% of all contacts at a below-base 6.4%
+  rate, while low-volume months (Mar, Sep, Oct, Dec, each under 2% of contacts)
+  convert at 44 to 51%. Reading the rate without the volume would point you at
+  the wrong month.
 
-Every one of these is a *correlation with a selection story attached*.
-Quantifying how much survives adjustment for confounders — i.e. whether the
-campaign actually **worked** — is the Day 5 centrepiece.
+Each of these is a correlation with a selection story behind it. Measuring how
+much survives once you adjust for the confounders, that is, whether the campaign
+actually worked, is the Day 5 task.
